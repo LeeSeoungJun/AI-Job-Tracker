@@ -4,7 +4,7 @@ database/models.py
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -20,7 +20,7 @@ class JobPosting(Base):
     job_id = Column(String(100), unique=True, nullable=False) # 고유 ID
     company_name = Column(String(100), nullable=False)       # 기업명
     title = Column(String(200), nullable=False)              # 공고 제목
-    
+
     # 공고 핵심 조건
     experience = Column(String(50))            # 경력 (e.g., 신입·경력)
     education = Column(String(100))            # 학력 (e.g., 대졸 이상)
@@ -31,12 +31,19 @@ class JobPosting(Base):
     # 📝 통합 우대사항 및 메모 (수기 입력용)
     preference = Column(Text, default="")      # 수기로 정리할 자격증/스킬/전공 등
     notes = Column(Text, default="")           # 지원 여부, 메모 등
-    application_status = Column(String(30), nullable=False, default="미정", server_default="미정")
+    application_status = Column(String(30), nullable=False, default="미지원", server_default="미지원")
+    status_updated = Column(Boolean, nullable=False, default=False, server_default="0")
     favorite = Column(Boolean, nullable=False, default=False, server_default="0")
     description = Column(Text, default="", server_default="")
     responsibilities = Column(Text, default="", server_default="")
     qualifications = Column(Text, default="", server_default="")
     auto_preference = Column(Text, default="", server_default="")
     detail_status = Column(Text, default="미수집", server_default="미수집")
+
+    jobplanet_source_url = Column(Text, nullable=True)
+    jobplanet_source = Column(String(30), nullable=True)
+    jobplanet_rating = Column(Float, nullable=True)
+    jobplanet_review_count = Column(Integer, nullable=True)
+    jobplanet_checked_on = Column(String(10), nullable=True)
 
     created_at = Column(DateTime, default=datetime.now)

@@ -27,3 +27,18 @@ def expired(deadline, collected_at, today):
         if abs(parsed.year - reference.year) and parsed < reference:
             return False
     return parsed < today
+
+
+def accepts_up_to_two_years(experience):
+    """신입·경력무관 또는 표기된 경력 연수가 2년을 넘지 않는 공고."""
+    value = str(experience or '').strip()
+    if '신입' in value or '무관' in value:
+        return True
+    years = re.search(r'(\d+)\s*년', value)
+    # 범위 표기는 상한까지 2년 이내여야 한다.
+    span = re.search(r'(\d+)\s*(?:~|～|–|-)\s*(\d+)\s*년', value)
+    if span:
+        return int(span.group(1)) <= int(span.group(2)) <= 2
+    if years:
+        return int(years.group(1)) <= 2
+    return False

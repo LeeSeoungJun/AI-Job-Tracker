@@ -11,3 +11,11 @@ venv/
 backups/
 *.code-workspace
 .pytest_cache/
+
+# Local scratch files and database sidecars
+work/
+*.db-*
+*.sqlite-*
+*.sqlite3-*
+*.log
+.streamlit/secrets.toml

@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, URL, text
 from sqlalchemy.orm import sessionmaker
 from database.models import Base, JobPosting
 from crawler.sections import FIELDS
+from job_identity import duplicate_key
 
 DB_PATH = Path(__file__).resolve().parents[1] / "jobs_data.db"
 DB_URL = URL.create("sqlite", database=str(DB_PATH))
@@ -19,9 +20,22 @@ def initialize_database(target_engine):
         conn.exec_driver_sql("BEGIN IMMEDIATE")
         columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(job_postings)")}
         if "application_status" not in columns:
-            conn.execute(text("ALTER TABLE job_postings ADD COLUMN application_status VARCHAR(30) NOT NULL DEFAULT '미정'"))
+            conn.execute(text("ALTER TABLE job_postings ADD COLUMN application_status VARCHAR(30) NOT NULL DEFAULT '미지원'"))
+        if 'status_updated' not in columns:
+            conn.exec_driver_sql('ALTER TABLE job_postings ADD COLUMN status_updated BOOLEAN NOT NULL DEFAULT 0')
+            conn.exec_driver_sql("UPDATE job_postings SET status_updated=1 WHERE application_status IS NOT NULL AND application_status != '미정'")
+        conn.exec_driver_sql("UPDATE job_postings SET application_status = CASE "
+                            "WHEN application_status IN ('관심', '지원 예정') THEN '지원 예정' "
+                            "WHEN application_status IN ('지원 완료', '불합격', '합격') THEN '지원 완료' "
+                            "ELSE '미지원' END")
         if "favorite" not in columns:
             conn.execute(text("ALTER TABLE job_postings ADD COLUMN favorite BOOLEAN NOT NULL DEFAULT 0"))
+        for column, column_type in [('jobplanet_source_url', 'TEXT'), ('jobplanet_source', 'VARCHAR(30)'),
+                                    ('jobplanet_rating', 'FLOAT'),
+                                    ('jobplanet_review_count', 'INTEGER'),
+                                    ('jobplanet_checked_on', 'VARCHAR(10)')]:
+            if column not in columns:
+                conn.exec_driver_sql(f'ALTER TABLE job_postings ADD COLUMN {column} {column_type}')
         for column in FIELDS:
             if column not in columns:
                 default = '미수집' if column == 'detail_status' else ''
@@ -38,6 +52,13 @@ def save_jobs_to_db(jobs_list: list) -> int:
     seen = set()
 
     try:
+        # 이전 수집 및 같은 실행에서 저장한 다른 플랫폼 공고도 확인한다.
+        identities = {}
+        for row in session.query(JobPosting).all():
+            key = duplicate_key({field: getattr(row, field) for field in
+                                 ('company_name', 'title', 'location_summary')})
+            if key:
+                identities.setdefault(key, set()).add(row.platform)
         for job in jobs_list:
             required = ("job_id", "company_name", "title", "detail_url")
             if not isinstance(job, dict) or any(
@@ -60,6 +81,12 @@ def save_jobs_to_db(jobs_list: list) -> int:
                     existing.detail_status = job['detail_status']
                 continue
 
+            key = duplicate_key(job)
+            platform = job.get('platform') or 'saramin'
+            if key and any(other != platform for other in identities.get(key, ())):
+                # 중복의 본문·링크로 기존 공고와 수기 기록을 덮어쓰지 않는다.
+                continue
+
             job_posting = JobPosting(
                 platform=job.get("platform") or "saramin",
                 job_id=job_id,
@@ -76,6 +103,8 @@ def save_jobs_to_db(jobs_list: list) -> int:
             )
 
             session.add(job_posting)
+            if key:
+                identities.setdefault(key, set()).add(platform)
             saved_count += 1
 
         session.commit()

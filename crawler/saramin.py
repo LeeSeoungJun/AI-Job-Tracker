@@ -28,7 +28,7 @@ class SaraminCrawler(BaseCrawler):
                 "searchword": keyword,
                 "recruitPage": page,
                 "recruitSort": "relation",
-                "recruitPageCount": "40",
+                "recruitPageCount": "100",
             }
 
             try:
